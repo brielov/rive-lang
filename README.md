@@ -463,7 +463,7 @@ Rive’s compiler is a work-in-progress, built to explore the full compilation p
 
 - [ ] **Parsing**: Turn tokens into an Abstract Syntax Tree (AST).
 
-  - [ ] Define AST nodes for Rive’s grammar (structs, enums, protos).
+  - [x] Define AST nodes for Rive’s grammar (structs, enums, protos).
   - [ ] Write a parser to construct the AST.
   - [ ] Add error reporting with spans.
 
