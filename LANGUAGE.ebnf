@@ -1,0 +1,230 @@
+(* Top-level program structure: defines the entire program as a sequence of comments, items, module declarations, or use statements *)
+program = { comment | item | mod_declaration | use_statement } ;
+
+(* Items at the top level: specifies the kinds of definitions allowed at the root, such as protocols, structs, enums, functions, or constants *)
+item = protocol_definition | struct_definition | enum_definition | function_definition | const_definition ;
+
+(* Module declaration: declares a module with an identifier, e.g., "mod some_module;" *)
+mod_declaration = "mod", identifier, ";" ;
+
+(* Use statement: imports a path for use, e.g., "use some_module::say_hello;" *)
+use_statement = "use", path, ";" ;
+
+(* Path for imports: defines a hierarchical path, e.g., "some_module" or "some_module::say_hello" *)
+path = identifier, { "::", identifier } ;
+
+(* Comments: allows either single-line or multi-line comments *)
+comment = single_line_comment | multi_line_comment ;
+
+(* Single-line comment: starts with "#" and continues until a newline *)
+single_line_comment = "#", { ? any character except newline ? }, ? newline ? ;
+
+(* Multi-line comment: starts with "#*" and ends with "*#" *)
+multi_line_comment = "#*", { ? any character ? }, "*#" ;
+
+(* Protocol definition: defines a protocol (interface) with an optional publicity modifier, generic parameter, and protocol inheritance *)
+protocol_definition = [ "pub" ], "proto", identifier, [ generic_params ], [ ":", protocol_list ], "{", { comment | protocol_method }, "}" ;
+
+(* Protocol method: a function signature within a protocol *)
+protocol_method = function_definition ;
+
+(* Struct definition: defines a struct with an optional publicity modifier and protocol conformance and fields or methods *)
+struct_definition = [ "pub" ], "struct", identifier, [ ":", protocol_list ], "{", { comment | struct_field | struct_method }, "}" ;
+
+(* Struct field: a public field with an identifier and type *)
+struct_field = "pub", identifier, ":", type, ";" ;
+
+(* Struct method: a function definition within a struct *)
+struct_method = function_definition ;
+
+(* Enum definition: defines an enum with an optional publicity modifier, generics, and variants or methods *)
+enum_definition = [ "pub" ], "enum", identifier, [ generic_params ], "{", { comment | enum_variant | enum_method }, "}" ;
+
+(* Enum variant: an enum case, optionally with a tuple or struct-like payload *)
+enum_variant = identifier, [ ( "(", type, ")" ) | ( "{", { comment | variant_field }, "}" ) ], ";" ;
+
+(* Variant field: a named field within a struct-like enum variant *)
+variant_field = identifier, ":", type, ";" ;
+
+(* Enum method: a function definition within an enum *)
+enum_method = function_definition ;
+
+(* Function definition: defines a function with optional publicity, generics, parameters, return type, and body *)
+function_definition = [ "pub" ], "fn", identifier, [ generic_params ], "(", [ "self" | parameter_list ], ")", [ "->", type ], block ;
+
+(* Top-level constant: defines a constant with an optional publicity modifier, type, and value *)
+const_definition = [ "pub" ], "const", identifier, ":", type, "=", expression, ";" ;
+
+(* Protocol list: a comma-separated list of protocols for inheritance or conformance *)
+protocol_list = protocol_ref, { ",", protocol_ref } ;
+
+(* Protocol reference: a protocol name with an optional generic type *)
+protocol_ref = identifier, [ "<", type, ">" ] ;
+
+(* Generic parameters: defines a list of generic type parameters enclosed in angle brackets *)
+generic_params = "<", generic_param, { ",", generic_param }, ">" ;
+
+(* Generic parameter: a single generic parameter with optional constraints and default type *)
+generic_param = identifier, [ ":", constraint_list ], [ "=", type ] ;
+
+(* Constraint list: a list of protocols that a generic parameter must conform to *)
+constraint_list = protocol_ref, { "+", protocol_ref } ;
+
+(* Parameter list: a comma-separated list of function parameters *)
+parameter_list = parameter, { ",", parameter } ;
+
+(* Parameter: a single parameter with a name and type *)
+parameter = identifier, ":", type ;
+
+(* Code block: a block of statements and an optional final expression, enclosed in braces *)
+block = "{", { comment | statement }, [ expression ], "}" ;
+
+(* Statement: a variable definition, expression, break, or continue *)
+statement = variable_definition | expression, ";" | break_statement | continue_statement ;
+
+(* Variable definition: declares a variable, optionally mutable, with a type and initial value *)
+variable_definition = "let", [ "mut" ], identifier, [ ":", type ], "=", expression, ";" ;
+
+(* Break statement: exits a loop, optionally with a value *)
+break_statement = "break", [ expression ], ";" ;
+
+(* Continue statement: skips to the next loop iteration *)
+continue_statement = "continue", ";" ;
+
+(* Type specifier: defines basic types, user-defined types, generics, or arrays *)
+type = "int" | "float" | "bool" | "char" | "str" | identifier | identifier, "<", type, ">" | "[", type_list, "]" ;
+
+(* Type list: a comma-separated list of types, used in arrays or tuples *)
+type_list = type, { ",", type } ;
+
+(* Expressions: the core of the language, covering literals, operations, control flow, etc. *)
+expression = literal | identifier | binary_operation | unary_operation | if_expression | unless_expression | block | function_call | loop_expression | for_expression | while_expression | range_expression | match_expression | struct_literal | enum_literal | tuple_literal | field_access | method_call | closure_expression ;
+
+(* Literal: a basic value like an integer, float, boolean, character, or string *)
+literal = integer | float_literal | boolean | char_literal | string ;
+
+(* Integer: an optional negative sign followed by digits *)
+integer = [ "-" ], digit, { digit } ;
+
+(* Float literal: an optional negative sign, digits, a decimal point, and more digits *)
+float_literal = [ "-" ], digit, { digit }, ".", digit, { digit } ;
+
+(* Boolean: either "true" or "false" *)
+boolean = "true" | "false" ;
+
+(* Char literal: a single character enclosed in single quotes *)
+char_literal = "'", character, "'" ;
+
+(* String: a sequence of characters or interpolated expressions enclosed in double quotes *)
+string = '"', { string_content }, '"' ;
+
+(* String content: characters or expressions interpolated with "#{...}" *)
+string_content = character | "#", "{", expression, "}" ;
+
+(* Binary operation: an expression with a binary operator between two operands *)
+binary_operation = expression, binary_operator, expression ;
+
+(* Binary operator: arithmetic, comparison, logical, or bitwise operators, including modulo *)
+binary_operator = "+" | "-" | "*" | "/" | "%" | "==" | "!=" | "<" | ">" | "<=" | ">=" | "||" | "&&" | "&" | "|" | "^" | "<<" | ">>" ;
+
+(* Unary operation: an expression with a unary operator applied *)
+unary_operation = unary_operator, expression ;
+
+(* Unary operator: negation, logical NOT, or bitwise NOT *)
+unary_operator = "-" | "!" | "~" ;
+
+(* If expression: conditional execution with an optional else clause *)
+if_expression = "if", expression, block, [ "else", ( block | if_expression ) ] ;
+
+(* Unless expression: inverse conditional execution with an optional else clause *)
+unless_expression = "unless", expression, block, [ "else", block ] ;
+
+(* Loop expression: an infinite loop *)
+loop_expression = "loop", block ;
+
+(* For expression: iterates over a collection or range *)
+for_expression = "for", identifier, "in", expression, block ;
+
+(* While expression: loops while a condition is true *)
+while_expression = "while", expression, block ;
+
+(* Range expression: a range with exclusive ".." or inclusive "..=" bounds *)
+range_expression = expression, ( ".." | "..=" ), expression ;
+
+(* Match expression: pattern matching with multiple arms *)
+match_expression = "match", expression, "{", { comment | match_arm }, "}" ;
+
+(* Match arm: a pattern, optional guard, and resulting expression or block *)
+match_arm = pattern, [ "if", expression ], "->", ( expression | block ), "," ;
+
+(* Pattern: used in match expressions to match values *)
+pattern = literal | identifier | "_" | pattern_range | pattern, "|", pattern | enum_pattern | tuple_pattern ;
+
+(* Pattern range: an inclusive range for matching *)
+pattern_range = expression, "..=", expression ;
+
+(* Enum pattern: matches an enum variant with optional payload *)
+enum_pattern = identifier, [ ( "(", identifier, ")" ) | ( "{", [ pattern_field_list ], "}" ) ] ;
+
+(* Pattern field list: fields within a struct-like enum pattern *)
+pattern_field_list = pattern_field, { ",", pattern_field } ;
+
+(* Pattern field: a named field in an enum pattern *)
+pattern_field = identifier, ":", pattern ;
+
+(* Tuple pattern: matches a tuple with a list of patterns *)
+tuple_pattern = "[", pattern_list, "]" ;
+
+(* Pattern list: a comma-separated list of patterns *)
+pattern_list = pattern, { ",", pattern } ;
+
+(* Function call: invokes a function with optional arguments *)
+function_call = identifier, "(", [ argument_list ], ")" ;
+
+(* Argument list: a comma-separated list of expressions as arguments *)
+argument_list = expression, { ",", expression } ;
+
+(* Struct literal: creates a struct instance with field initializations *)
+struct_literal = identifier, "{", [ field_init_list ], "}" ;
+
+(* Field init list: a comma-separated list of field initializations *)
+field_init_list = field_init, { ",", field_init } ;
+
+(* Field init: initializes a struct field with a value *)
+field_init = identifier, ":", expression ;
+
+(* Enum literal: creates an enum variant with optional payload *)
+enum_literal = identifier, "::", identifier, [ ( "(", expression, ")" ) | ( "{", [ field_init_list ], "}" ) ] ;
+
+(* Tuple literal: creates a tuple with a list of expressions *)
+tuple_literal = "[", expression_list, "]" ;
+
+(* Expression list: a comma-separated list of expressions *)
+expression_list = expression, { ",", expression } ;
+
+(* Field access: accesses a field of a struct or enum *)
+field_access = expression, ".", identifier ;
+
+(* Method call: invokes a method on an object with optional arguments *)
+method_call = expression, ".", identifier, "(", [ argument_list ], ")" ;
+
+(* Closure expression: defines an anonymous function with parameters and a body *)
+closure_expression = "|", [ closure_param_list ], "|", ( expression | ( [ "->", type ], block ) ) ;
+
+(* Closure param list: a comma-separated list of closure parameters *)
+closure_param_list = closure_param, { ",", closure_param } ;
+
+(* Closure param: a single parameter in a closure with an optional type *)
+closure_param = identifier, [ ":", type ] ;
+
+(* Identifier: a name starting with a letter followed by letters, digits, or underscores *)
+identifier = letter, { letter | digit | "_" } ;
+
+(* Letter: any alphabetic character *)
+letter = "a" .. "z" | "A" .. "Z" ;
+
+(* Digit: any numeric character *)
+digit = "0" .. "9" ;
+
+(* Character: any single character, used in char literals and strings *)
+character = ? any single character ? ;
