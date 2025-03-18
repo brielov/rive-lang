@@ -14,6 +14,7 @@ pub enum Token {
     Loop,     // 'loop'
     Match,    // 'match'
     Mod,      // 'mod'
+    Mut,      // 'mut'
     Proto,    // 'proto'
     Pub,      // 'pub'
     Struct,   // 'struct'

@@ -163,6 +163,7 @@ impl<'a> Lexer<'a> {
             "loop" => Token::Loop,
             "match" => Token::Match,
             "mod" => Token::Mod,
+            "mut" => Token::Mut,
             "proto" => Token::Proto,
             "pub" => Token::Pub,
             "struct" => Token::Struct,
