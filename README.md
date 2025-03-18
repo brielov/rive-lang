@@ -4,36 +4,122 @@ Welcome to **Rive**! I’m a web developer building this language purely for fun
 
 ## Syntax Overview
 
-Rive blends familiar concepts like structs and enums with a protocol-like system (`proto`) for defining behaviors. Here’s a taste:
+#### Single-Line Comment
 
 ```rive
 # Single-line comment
+```
 
+**Compiled JS:**
+
+```javascript
+// Single-line comment
+```
+
+- Simple: `#` becomes `//`, and the comment text follows. No runtime impact.
+
+---
+
+#### Multi-Line Comment
+
+```rive
 #*
 Multi-line
 comment
 *#
+```
 
-# Enums with generics
+**Compiled JS:**
+
+```javascript
+/*
+Multi-line
+comment
+*/
+```
+
+- `#*` and `*#" map to `/_`and`_/` for JS multi-line comments. Again, no runtime code.
+
+---
+
+#### Enum with Generics: `Maybe<T>`
+
+```rive
 enum Maybe<T> {
     Some(T);
     None;
 }
+```
 
+**Compiled JS:**
+
+```javascript
+// Some(T) -> [1, value]
+// None -> [0]
+```
+
+- As established, variants use integer tags in arrays:
+  - `Some(T)` → `[1, value]`
+  - `None` → `[0]`
+- Generics (`T`) are erased at compile time (like Rust’s monomorphization), so no JS runtime representation is needed. The type-checker ensures `T` is valid.
+
+---
+
+#### Enum without Generics: `Ordering`
+
+```rive
 enum Ordering {
     Less;
     Equal;
     Greater;
 }
+```
 
-# Protocols with default implementations
+**Compiled JS:**
+
+```javascript
+// Less -> [0]
+// Equal -> [1]
+// Greater -> [2]
+```
+
+- No-data variants get sequential tags:
+  - `Less` → `[0]`
+  - `Equal` → `[1]`
+  - `Greater` → `[2]`
+- Simple and minimal, with no runtime type info.
+
+---
+
+#### Protocol with Default Implementation: `Equatable`
+
+```rive
 proto Equatable<Rhs = Self> {
     fn eq(self, other: Rhs) -> bool;
     fn ne(self, other: Rhs) -> bool {
-        not self.eq(other)
+        !self.eq(other)
     }
 }
+```
 
+**Compiled JS:**
+
+```javascript
+// No code generated for the protocol itself.
+// Abstract method eq must be implemented by structs.
+// Default method ne is generated per implementing struct.
+```
+
+For an implementing struct like `Point`:
+
+- `eq` → `point_eq(self, other)` (user-provided).
+- `ne` → `point_ne(self, other)` (auto-generated as `!point_eq(self, other)`).
+
+---
+
+#### Protocol with Inheritance: `Comparable`
+
+```rive
 proto Comparable<Rhs = Self> : Equatable<Rhs> {
     fn cmp(self, other: Rhs) -> Maybe<Ordering>;
     fn gt(self, other: Rhs) -> bool { self.cmp(other) == Some(Greater) }
@@ -41,14 +127,58 @@ proto Comparable<Rhs = Self> : Equatable<Rhs> {
     fn gte(self, other: Rhs) -> bool { self.cmp(other) != Some(Less) }
     fn lte(self, other: Rhs) -> bool { self.cmp(other) != Some(Greater) }
 }
+```
 
-# Arithmetic protocols
+**Compiled JS:**
+
+```javascript
+// cmp must be implemented by conforming types
+function comparable_gt(self, other) {
+  let result = comparable_cmp(self, other);
+  return result[0] === 1 && result[1][0] === 2; // Some(Greater)
+}
+function comparable_lt(self, other) {
+  let result = comparable_cmp(self, other);
+  return result[0] === 1 && result[1][0] === 0; // Some(Less)
+}
+function comparable_gte(self, other) {
+  let result = comparable_cmp(self, other);
+  return !(result[0] === 1 && result[1][0] === 0); // Not Some(Less)
+}
+function comparable_lte(self, other) {
+  let result = comparable_cmp(self, other);
+  return !(result[0] === 1 && result[1][0] === 2); // Not Some(Greater)
+}
+```
+
+- `cmp` is abstract, implemented by conforming types (e.g., `comparable_cmp`).
+- Default methods are standalone functions:
+  - `Maybe<Ordering>` uses `[1, [n]]` for `Some` and `[0]` for `None`.
+  - `Ordering` uses `[0]`, `[1]`, `[2]` for `Less`, `Equal`, `Greater`.
+  - `==` and `!=` translate to deep comparisons of the tagged arrays.
+- Minimal logic: no unnecessary allocations, just tag checks.
+
+---
+
+#### Arithmetic Protocol: `Addable`
+
+```rive
 proto Addable<Rhs = Self> { fn add(self, other: Rhs) -> Self; }
-proto Subtractable<Rhs = Self> { fn sub(self, other: Rhs) -> Self; }
-proto Multipliable<Rhs = Self> { fn mul(self, other: Rhs) -> Self; }
-proto Divisible<Rhs = Self> { fn div(self, other: Rhs) -> Self; }
+```
 
-# A struct implementing multiple protocols
+**Compiled JS:**
+
+```javascript
+// add must be implemented by conforming types
+```
+
+- Purely abstract, so no JS code unless implemented by a struct. The prefix `addable_add` would be used by implementors.
+
+---
+
+#### Struct with Protocol Conformance: `Point`
+
+```rive
 struct Point : Comparable, Addable, Subtractable, Multipliable, Divisible {
     pub x: float;
     pub y: float;
@@ -80,8 +210,50 @@ struct Point : Comparable, Addable, Subtractable, Multipliable, Divisible {
         Point { x: self.x / other.x, y: self.y / other.y }
     }
 }
+```
 
-# Pattern matching with complex arms and ranges
+**Compiled JS:**
+
+```javascript
+// Point as a plain object: {x: number, y: number}
+function point_eq(self, other) {
+  return self.x === other.x && self.y === other.y;
+}
+function point_ne(self, other) {
+  return !point_eq(self, other);
+}
+function comparable_cmp(self, other) {
+  if (point_eq(self, other)) return [1, [1]]; // Some(Equal)
+  if (self.x > other.x || (self.x === other.x && self.y > other.y))
+    return [1, [2]]; // Some(Greater)
+  if (self.x < other.x || (self.x === other.x && self.y < other.y))
+    return [1, [0]]; // Some(Less)
+  return [0]; // None
+}
+function addable_add(self, other) {
+  return { x: self.x + other.x, y: self.y + other.y };
+}
+function subtractable_sub(self, other) {
+  return { x: self.x - other.x, y: self.y - other.y };
+}
+function multipliable_mul(self, other) {
+  return { x: self.x * other.x, y: self.y * other.y };
+}
+function divisible_div(self, other) {
+  return { x: self.x / other.x, y: self.y / other.y };
+}
+```
+
+- **Struct Representation**: `Point` compiles to a plain JS object `{x, y}`, minimal and native.
+- **Methods**: Standalone functions with struct-specific prefixes (e.g., `point_eq`, `addable_add`).
+- **Protocol Conformance**: Each method satisfies its protocol, reusing `point_eq` in `cmp` and auto-generating `point_ne`.
+- **Operators**: `and` → `&&`, `==` → `===`, etc., for JS compatibility.
+
+---
+
+#### Pattern Matching: `describe_value`
+
+```rive
 fn describe_value(m: Maybe<Ordering>, n: int, c: char) -> str {
     match [m, n, c] {
         [Some(Less), 0..=9, 'a'..='z'] => "Less with small number and lowercase",
@@ -93,97 +265,191 @@ fn describe_value(m: Maybe<Ordering>, n: int, c: char) -> str {
 }
 ```
 
-- **Comments**: `#` for single-line, `#* ... *#` for multi-line.
-- **Enums**: Tagged unions with optional generics (e.g., `Maybe<T>`).
-- **Protocols**: Define interfaces (`proto`) with optional defaults and inheritance.
-- **Structs**: Data structures that can implement protocols with public fields and methods.
-
-## Example JavaScript Output
-
-Rive compiles to JavaScript, mapping its features to JS constructs. Here’s how the above code might look:
+**Compiled JS:**
 
 ```javascript
-// Enums as tagged objects
-const maybe_some = (value) => ({ tag: "Some", value });
-const maybe_none = () => ({ tag: "None" });
-
-const ordering = {
-  less: { tag: "Less" },
-  equal: { tag: "Equal" },
-  greater: { tag: "Greater" },
-};
-
-// Helper for comparing Maybe<Ordering>
-const maybe_ordering_eq = (m1, m2) =>
-  (m1.tag === "None" && m2.tag === "None") ||
-  (m1.tag === "Some" && m2.tag === "Some" && m1.value.tag === m2.value.tag);
-
-// Struct: Point with protocol implementations
-const point = {
-  new: (x, y) => ({ x, y }),
-  eq: (self, other) => self.x === other.x && self.y === other.y,
-  ne: (self, other) => !point.eq(self, other),
-  cmp: (self, other) => {
-    if (point.eq(self, other)) return maybe_some(ordering.equal);
-    if (self.x > other.x || (self.x === other.x && self.y > other.y))
-      return maybe_some(ordering.greater);
-    if (self.x < other.x || (self.x === other.x && self.y < other.y))
-      return maybe_some(ordering.less);
-    return maybe_none();
-  },
-  gt: (self, other) =>
-    maybe_ordering_eq(point.cmp(self, other), maybe_some(ordering.greater)),
-  lt: (self, other) =>
-    maybe_ordering_eq(point.cmp(self, other), maybe_some(ordering.less)),
-  gte: (self, other) =>
-    !maybe_ordering_eq(point.cmp(self, other), maybe_some(ordering.less)),
-  lte: (self, other) =>
-    !maybe_ordering_eq(point.cmp(self, other), maybe_some(ordering.greater)),
-  add: (self, other) => point.new(self.x + other.x, self.y + other.y),
-  sub: (self, other) => point.new(self.x - other.x, self.y - other.y),
-  mul: (self, other) => point.new(self.x * other.x, self.y * other.y),
-  div: (self, other) => point.new(self.x / other.x, self.y / other.y),
-};
-
-// Pattern matching with complex arms and ranges
 function describe_value(m, n, c) {
-  if (
-    m.tag === "Some" &&
-    m.value.tag === "Less" &&
-    n >= 0 &&
-    n <= 9 &&
-    c >= 97 &&
-    c <= 122 // 'a' = 97, 'z' = 122
-  )
+  if (m[0] === 1 && m[1][0] === 0 && n >= 0 && n <= 9 && c >= "a" && c <= "z") {
     return "Less with small number and lowercase";
-
-  if (m.tag === "Some" && m.value.tag === "Equal" && n >= 10 && n < 100)
+  } else if (m[0] === 1 && m[1][0] === 1 && n >= 10 && n < 100) {
     return "Equal with medium number";
-
-  if (
-    m.tag === "Some" &&
-    m.value.tag === "Greater" &&
+  } else if (
+    m[0] === 1 &&
+    m[1][0] === 2 &&
     n >= -10 &&
     n < 0 &&
-    c >= 65 &&
-    c <= 90 // 'A' = 65, 'Z' = 90
-  )
+    c >= "A" &&
+    c <= "Z"
+  ) {
     return "Greater with negative bound to n";
-
-  if (
-    m.tag === "None" &&
-    c >= 48 &&
-    c <= 57 // '0' = 48, '9' = 57
-  )
+  } else if (m[0] === 0 && c >= "0" && c <= "9") {
     return "Unknown with digit";
-
-  return "Something else";
+  } else {
+    return "Something else";
+  }
 }
 ```
 
-- **Enums**: Represented as factory functions returning tagged objects.
-- **Protocols**: Implicitly enforced; methods are attached to structs.
-- **Structs**: Single objects with a `new` constructor and method implementations.
+- **Tuple**: `[m, n, c]` is passed as separate arguments; no runtime tuple object.
+- **Patterns**:
+  - `Some(Less)` → `m[0] === 1 && m[1][0] === 0` (nested enum check).
+  - `0..=9` → `n >= 0 && n <= 9` (inclusive range).
+  - `'a'..='z'` → `c >= "a" && c <= "z"` (char range as string comparison).
+  - `10..100` → `n >= 10 && n < 100` (exclusive range).
+  - `n @ -10..0` → `n >= -10 && n < 0` (binding uses parameter `n` directly).
+  - `_` → no condition.
+- **Minimal**: No arrays or objects created at runtime; pure conditionals.
+
+---
+
+#### Variable Definition with Enum Literal
+
+```rive
+let a = Maybe::Some(10);
+```
+
+**Compiled JS:**
+
+```javascript
+let a = [1, 10]; // Some(10)
+```
+
+- `Maybe::Some(10)`:
+  - `Maybe<T>` uses `[1, value]` for `Some` (tag `1`).
+  - `10` is the payload, placed at index 1.
+- `let a = ...` directly assigns the constructed value.
+- Minimal: no runtime type info, just the tagged array.
+
+---
+
+#### Variable Definition with Struct Literal
+
+```rive
+let b = Point { x: 1, y: 2 };
+```
+
+**Compiled JS:**
+
+```javascript
+let b = { x: 1, y: 2 };
+```
+
+- `Point { x: 1, y: 2 }`:
+  - `Point` is a plain JS object with fields `x` and `y`.
+  - Field initializers map directly to object properties.
+- `let b = ...` assigns the object literal.
+- Lean and native JS, no overhead.
+
+---
+
+#### Loop Expression: `loop`
+
+```rive
+let x = loop {
+    break 42;
+};
+```
+
+**Compiled JS:**
+
+```javascript
+let x;
+while (true) {
+  x = 42;
+  break;
+}
+```
+
+- `loop` is an infinite loop, like Rust’s, and an expression that can yield a value via `break`.
+- Compiled to a `while (true)` loop with `break` assigning the result to an outer variable.
+- Minimal: no extra constructs, just native JS control flow.
+
+---
+
+#### For Loop Expression
+
+```rive
+let sum = for x in 0..5 {
+    break x + 1;
+};
+```
+
+**Compiled JS:**
+
+```javascript
+let sum;
+for (let x = 0; x < 5; x++) {
+  sum = x + 1;
+  break;
+}
+```
+
+- `for x in 0..5` iterates over an exclusive range (iterator TBD, here assumed as a simple range).
+- Expression returns a value via `break`, assigned to `sum`.
+- Compiled to a JS `for` loop; range `[0, 0, 5]` interpreted as `x < 5`.
+- Iterator protocol still to be defined.
+
+---
+
+#### While Loop Expression
+
+```rive
+let mut n = 0;
+let result = while n < 3 {
+    n = n + 1;
+    break n;
+};
+```
+
+**Compiled JS:**
+
+```javascript
+let n = 0;
+let result;
+while (n < 3) {
+  n = n + 1;
+  result = n;
+  break;
+}
+```
+
+- `while` loops until the condition fails, returning a value via `break`.
+- `mut` allows `n` to be reassigned; JS uses `let` since block-scoped.
+- Simple `while` loop with assignment on `break`.
+
+---
+
+#### String Interpolation
+
+```rive
+let name = "world";
+let greeting = "Hey, #{name}";
+```
+
+**Compiled JS:**
+
+```javascript
+let name = "world";
+let greeting = `Hey, ${name}`;
+```
+
+- Inspired by Ruby, `#{expr}` interpolates expressions in strings.
+- Maps to JS template literals with `${expr}`.
+- Type-checker ensures `expr` stringifies correctly; no runtime overhead beyond JS strings.
+
+---
+
+### General Compilation Notes
+
+- **Enums**: `EnumName::Variant(params)` → `[tag, ...params]` (e.g., `Maybe::Some(10)` → `[1, 10]`).
+- **Ranges**: `[0, start, end]` (exclusive) or `[1, start, end]` (inclusive).
+- **Structs**: `StructName { field: value, ... }` → `{ field: value, ... }`.
+- **Methods**: Standalone functions with `self` as the first argument, prefixed by protocol/struct name.
+- **Protocols**: Abstract methods are placeholders; defaults are compiled functions scoped to the implementing struct.
+- **Pattern Matching**: Translated to `if-else` chains with tag and range checks.
+- **Variables**: `let name = expr` → `let name = compiled_expr`.
+- **Loops**: `loop`, `for`, `while` are expressions; compiled to JS loops with `break` assigning results.
+- **Strings**: `#{expr}` → `${expr}` in template literals.
 
 ## Project Goals
 
