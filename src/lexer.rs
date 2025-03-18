@@ -2,13 +2,26 @@ use std::{iter::Peekable, str::Chars};
 
 use crate::token::{Span, Token, WithSpan};
 
+/// A lexer that tokenizes source code into a stream of `WithSpan<Token>` items.
+///
+/// The `Lexer` processes a string input character by character, producing tokens
+/// such as keywords, operators, literals, and identifiers. It maintains position
+/// information for error reporting and skips whitespace between tokens.
+///
+/// Use `Lexer::new` to create an instance, then iterate over it to retrieve tokens.
 pub struct Lexer<'a> {
+    /// An iterator over the characters of the source string, with peeking capability.
     chars: Peekable<Chars<'a>>,
+    /// The current position in the source string (byte offset).
     pos: usize,
+    /// A reference to the original source string, used for slicing and parsing.
     source: &'a str,
 }
 
 impl<'a> Lexer<'a> {
+    /// Creates a new `Lexer` instance for the given source string.
+    ///
+    /// Initializes the character iterator and sets the starting position to 0.
     pub fn new(source: &'a str) -> Self {
         Self {
             chars: source.chars().peekable(),
@@ -17,6 +30,10 @@ impl<'a> Lexer<'a> {
         }
     }
 
+    /// Advances to the next character in the source and updates the position.
+    ///
+    /// Returns the character if available, or `None` if at the end of the input.
+    /// Updates `pos` based on the UTF-8 length of the consumed character.
     fn next(&mut self) -> Option<char> {
         let op = self.chars.next();
         if let Some(ch) = op {
@@ -25,6 +42,10 @@ impl<'a> Lexer<'a> {
         op
     }
 
+    /// Consumes the next character if it satisfies the given predicate.
+    ///
+    /// Peeks at the next character, applies the predicate, and advances if it matches.
+    /// Returns `true` if a character was consumed, `false` otherwise.
     fn consume_if<F>(&mut self, f: F) -> bool
     where
         F: Fn(char) -> bool,
@@ -41,6 +62,10 @@ impl<'a> Lexer<'a> {
         }
     }
 
+    /// Consumes characters while the predicate returns `true`, collecting them into a string.
+    ///
+    /// Returns the substring from the starting position to the current position.
+    /// Useful for lexing identifiers, numbers, and comments.
     fn consume_while<F>(&mut self, x: F) -> String
     where
         F: Fn(char) -> bool,
@@ -56,6 +81,9 @@ impl<'a> Lexer<'a> {
         self.source[start..self.pos].to_string()
     }
 
+    /// Consumes a character if it matches, returning one of two tokens based on the result.
+    ///
+    /// Used for disambiguating multi-character operators (e.g., `=` vs. `==`).
     fn either(&mut self, to_match: char, matched: Token, unmatched: Token) -> Option<Token> {
         if self.consume_if(|x| x == to_match) {
             return Some(matched);
@@ -63,10 +91,18 @@ impl<'a> Lexer<'a> {
         Some(unmatched)
     }
 
+    /// Skips all consecutive whitespace characters.
+    ///
+    /// Advances the position until a non-whitespace character is encountered.
     fn skip_whitespace(&mut self) {
         self.consume_while(|x| x.is_whitespace());
     }
 
+    /// Lexes a number (integer or float), handling an optional negative sign.
+    ///
+    /// Starts with the given character `ch` (already consumed) and continues consuming
+    /// digits. If a `.` is found, it lexes a float; otherwise, an integer.
+    /// Returns `Token::Int` or `Token::Float`, or `None` if parsing fails.
     fn lex_number(&mut self, ch: char, is_negative: bool) -> Option<Token> {
         let start = self.pos - ch.len_utf8();
         self.consume_while(|x| x.is_digit(10));
@@ -87,6 +123,10 @@ impl<'a> Lexer<'a> {
         }
     }
 
+    /// Lexes a string literal enclosed in double quotes, handling escapes.
+    ///
+    /// Consumes characters until a closing `"` is found, processing escape sequences
+    /// like `\n`. Returns `Token::String` on success or `Token::UnterminatedString` if unclosed.
     fn lex_string(&mut self) -> Option<Token> {
         let mut value = String::new();
         let mut escaped = false;
@@ -118,6 +158,10 @@ impl<'a> Lexer<'a> {
         Some(Token::UnterminatedString)
     }
 
+    /// Lexes a character literal enclosed in single quotes, handling escapes.
+    ///
+    /// Expects exactly one character (or an escape sequence) followed by a closing `'`.
+    /// Returns `Token::Char` on success, or `Token::UnterminatedChar`/`Token::InvalidCharLiteral` on error.
     fn lex_char(&mut self) -> Option<Token> {
         let Some(mut ch) = self.next() else {
             return Some(Token::UnterminatedChar);
@@ -146,6 +190,10 @@ impl<'a> Lexer<'a> {
         }
     }
 
+    /// Lexes an identifier or keyword starting with the given character.
+    ///
+    /// Consumes alphanumeric characters and underscores, then checks if the result
+    /// is a keyword. Returns a specific `Token` variant for keywords or `Token::Identifier` otherwise.
     fn lex_identifier(&mut self, ch: char) -> Option<Token> {
         let start = self.pos - ch.len_utf8();
         self.consume_while(|x| x.is_ascii_alphanumeric() || x == '_');
@@ -175,6 +223,9 @@ impl<'a> Lexer<'a> {
         })
     }
 
+    /// Lexes a comment, either single-line (`#...`) or multi-line (`#*...*#`).
+    ///
+    /// Returns `Token::Comment` with the content, or `Token::UnterminatedComment` if multi-line is unclosed.
     fn lex_comment(&mut self) -> Option<Token> {
         if self.consume_if(|x| x == '*') {
             // Multi-line comment
@@ -210,6 +261,10 @@ impl<'a> Lexer<'a> {
         }
     }
 
+    /// Lexes the next token from the input based on the current character.
+    ///
+    /// Dispatches to specialized methods for numbers, strings, identifiers, etc.,
+    /// or returns simple tokens for punctuation and operators.
     fn lex(&mut self) -> Option<Token> {
         let ch = self.next()?;
         match ch {
@@ -283,6 +338,9 @@ impl<'a> Lexer<'a> {
 impl<'a> Iterator for Lexer<'a> {
     type Item = WithSpan<Token>;
 
+    /// Produces the next token in the stream, wrapped with its source span.
+    ///
+    /// Skips whitespace, lexes the next token, and attaches its start and end positions.
     fn next(&mut self) -> Option<Self::Item> {
         self.skip_whitespace();
         let start = self.pos;
