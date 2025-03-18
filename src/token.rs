@@ -19,6 +19,7 @@ pub enum Token {
     Pub,      // 'pub'
     Struct,   // 'struct'
     True,     // 'true'
+    Use,      // 'use'
     While,    // 'while'
 
     // Primitives

@@ -167,6 +167,7 @@ impl<'a> Lexer<'a> {
             "proto" => Token::Proto,
             "pub" => Token::Pub,
             "struct" => Token::Struct,
+            "use" => Token::Use,
             "while" => Token::While,
             "false" => Token::Bool(false),
             "true" => Token::Bool(true),
@@ -420,7 +421,7 @@ mod tests {
     #[test]
     fn test_identifiers() {
         let tokens = lex(
-            "break const continue enum fn for let loop match mod mut proto pub struct while ident",
+            "break const continue enum fn for let loop match mod mut proto pub struct use while ident",
         );
         assert_eq!(
             tokens,
@@ -439,6 +440,7 @@ mod tests {
                 Token::Proto,
                 Token::Pub,
                 Token::Struct,
+                Token::Use,
                 Token::While,
                 Token::Identifier("ident".into())
             ]
