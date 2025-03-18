@@ -50,7 +50,7 @@ variant_field = identifier, ":", type, ";" ;
 enum_method = function_definition ;
 
 (* Function definition: defines a function with optional publicity, generics, parameters, return type, and body *)
-function_definition = [ "pub" ], "fn", identifier, [ generic_params ], "(", [ "self" | parameter_list ], ")", [ "->", type ], block ;
+function_definition = [ "pub" ], "fn", identifier, [ generic_params ], "(", [ "self" | "mut self" | parameter_list ], ")", [ "->", type ], block ;
 
 (* Top-level constant: defines a constant with an optional publicity modifier, type, and value *)
 const_definition = [ "pub" ], "const", identifier, ":", type, "=", expression, ";" ;
