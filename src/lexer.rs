@@ -416,4 +416,38 @@ mod tests {
             vec![Token::InvalidCharLiteral, Token::UnterminatedChar]
         );
     }
+
+    #[test]
+    fn test_identifiers() {
+        let tokens = lex(
+            "break const continue enum fn for let loop match mod mut proto pub struct while ident",
+        );
+        assert_eq!(
+            tokens,
+            vec![
+                Token::Break,
+                Token::Const,
+                Token::Continue,
+                Token::Enum,
+                Token::Fn,
+                Token::For,
+                Token::Let,
+                Token::Loop,
+                Token::Match,
+                Token::Mod,
+                Token::Mut,
+                Token::Proto,
+                Token::Pub,
+                Token::Struct,
+                Token::While,
+                Token::Identifier("ident".into())
+            ]
+        );
+    }
+
+    #[test]
+    fn test_booleans() {
+        let tokens = lex("true false");
+        assert_eq!(tokens, vec![Token::Bool(true), Token::Bool(false)]);
+    }
 }
