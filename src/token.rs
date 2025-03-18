@@ -66,9 +66,11 @@ pub enum Token {
     Star,           // '*'
     Tilde,          // '~',
 
+    Comment(String),
     Unknown(char),
     UnterminatedString,
     UnterminatedChar,
+    UnterminatedComment(String),
     InvalidCharLiteral, // More than one char in char literal
 }
 

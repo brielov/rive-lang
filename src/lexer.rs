@@ -175,6 +175,41 @@ impl<'a> Lexer<'a> {
         })
     }
 
+    fn lex_comment(&mut self) -> Option<Token> {
+        if self.consume_if(|x| x == '*') {
+            // Multi-line comment
+            let start = self.pos;
+            let mut end = None; // Track the last valid comment position
+
+            while let Some(&ch) = self.chars.peek() {
+                let pos_before = self.pos;
+                self.next(); // Consume current character
+
+                if ch == '*' {
+                    if let Some(&'#') = self.chars.peek() {
+                        self.next(); // Consume '#'
+                        end = Some(pos_before); // Store position *before* `*#`
+                        break;
+                    }
+                }
+            }
+
+            if let Some(end_pos) = end {
+                Some(Token::Comment(self.source[start..end_pos].to_string()))
+            } else {
+                // Unterminated comment
+                Some(Token::UnterminatedComment(
+                    self.source[start..self.pos].to_string(),
+                ))
+            }
+        } else {
+            // Single-line comment
+            let start = self.pos;
+            self.consume_while(|x| x != '\n');
+            Some(Token::Comment(self.source[start..self.pos].to_string()))
+        }
+    }
+
     fn lex(&mut self) -> Option<Token> {
         let ch = self.next()?;
         match ch {
@@ -235,6 +270,7 @@ impl<'a> Lexer<'a> {
                     Some(Token::Dot)
                 }
             }
+            '#' => self.lex_comment(),
             '"' => self.lex_string(),
             '\'' => self.lex_char(),
             '0'..='9' => self.lex_number(ch, false),
@@ -461,5 +497,23 @@ mod tests {
     fn test_booleans() {
         let tokens = lex("true false");
         assert_eq!(tokens, vec![Token::Bool(true), Token::Bool(false)]);
+    }
+
+    #[test]
+    fn test_single_line_comment() {
+        let tokens = lex("# This is a single-line comment");
+        assert_eq!(
+            tokens,
+            vec![Token::Comment(" This is a single-line comment".into())]
+        );
+    }
+
+    #[test]
+    fn test_multi_line_comment() {
+        let tokens = lex("#* This is\na multi-line\ncomment *#");
+        assert_eq!(
+            tokens,
+            vec![Token::Comment(" This is\na multi-line\ncomment ".into())]
+        );
     }
 }
