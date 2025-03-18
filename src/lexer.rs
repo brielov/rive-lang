@@ -1,6 +1,6 @@
 use std::{iter::Peekable, str::Chars};
 
-use crate::token::Token;
+use crate::token::{Span, Token, WithSpan};
 
 pub struct Lexer<'a> {
     chars: Peekable<Chars<'a>>,
@@ -58,7 +58,7 @@ impl<'a> Lexer<'a> {
 
     fn either(&mut self, to_match: char, matched: Token, unmatched: Token) -> Option<Token> {
         if self.consume_if(|x| x == to_match) {
-            return Some(matched); // Fixed: No extra advance here
+            return Some(matched);
         }
         Some(unmatched)
     }
@@ -175,8 +175,7 @@ impl<'a> Lexer<'a> {
         })
     }
 
-    pub fn lex(&mut self) -> Option<Token> {
-        self.skip_whitespace();
+    fn lex(&mut self) -> Option<Token> {
         let ch = self.next()?;
         match ch {
             '(' => Some(Token::LParen),
@@ -246,10 +245,17 @@ impl<'a> Lexer<'a> {
 }
 
 impl<'a> Iterator for Lexer<'a> {
-    type Item = Token;
+    type Item = WithSpan<Token>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.lex()
+        self.skip_whitespace();
+        let start = self.pos;
+        let value = self.lex()?;
+        let span = Span {
+            start,
+            end: self.pos,
+        };
+        Some(WithSpan { value, span })
     }
 }
 
@@ -259,7 +265,11 @@ mod tests {
 
     fn lex<'a>(source: &'a str) -> Vec<Token> {
         let lexer = Lexer::new(source);
-        Vec::from_iter(lexer)
+        let mut tokens: Vec<Token> = vec![];
+        for token in lexer {
+            tokens.push(token.value);
+        }
+        tokens
     }
 
     #[test]

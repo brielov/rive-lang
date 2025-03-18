@@ -71,3 +71,15 @@ pub enum Token {
     UnterminatedChar,
     InvalidCharLiteral, // More than one char in char literal
 }
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Span {
+    pub start: usize,
+    pub end: usize,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct WithSpan<T> {
+    pub value: T,
+    pub span: Span,
+}
